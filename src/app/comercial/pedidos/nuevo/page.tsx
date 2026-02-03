@@ -36,9 +36,20 @@ import { formatCurrency, formatDate } from '@/lib/utils/formatters';
 interface OrderItem {
   product_id: string;
   product_name?: string;
+  variant_name?: string;
   quantity: number;
   unit_price_snapshot: number;
 }
+
+// Función para obtener el precio del producto basado en la lista del cliente
+const getProductPrice = (product: any, variantName?: string): number => {
+  // Por ahora retornamos 0, esto se debe implementar con la lógica de price_lists
+  // TODO: Implementar búsqueda de precio en price_list_items basado en:
+  // - selectedClient.price_list_id
+  // - product.id
+  // - Si tiene variante, buscar precio específico o usar base + extra_cost
+  return 0;
+};
 
 export default function NuevoPedidoPage() {
   const router = useRouter();
@@ -58,9 +69,13 @@ export default function NuevoPedidoPage() {
   
   // Temporary states for adding items
   const [selectedProductId, setSelectedProductId] = useState('');
+  const [selectedVariant, setSelectedVariant] = useState('');
   const [selectedQuantity, setSelectedQuantity] = useState('');
   const [selectedPrice, setSelectedPrice] = useState('');
   const [clientSearch, setClientSearch] = useState('');
+
+  // Get selected product details
+  const selectedProduct = products.find(p => p.id === selectedProductId);
 
   useEffect(() => {
     loadClients();
@@ -266,54 +281,73 @@ export default function NuevoPedidoPage() {
             {/* Step 1: Cliente y Entrega */}
             {currentStep === 1 && (
               <div className="space-y-6">
-                {/* Selección de Cliente */}
-                <div>
+                {/* Selección de Cliente - Dropdown con Búsqueda */}
+                <div className="relative">
                   <label className="block text-sm font-medium text-text-secondary mb-2">
                     Seleccionar Cliente *
                   </label>
                   
-                  {/* Búsqueda de cliente */}
-                  <div className="relative mb-3">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-text-muted" />
-                    <Input
-                      value={clientSearch}
-                      onChange={(e) => setClientSearch(e.target.value)}
-                      placeholder="Buscar cliente por nombre..."
-                      className="pl-10"
-                    />
-                  </div>
-                  
-                  {/* Lista de clientes */}
-                  <div className="max-h-64 overflow-y-auto border border-border rounded-lg divide-y divide-border">
-                    {filteredClients.length > 0 ? (
-                      filteredClients.map((client) => (
-                        <div
-                          key={client.id}
-                          onClick={() => setFormData({ ...formData, client_id: client.id })}
-                          className={`p-3 cursor-pointer hover:bg-surface-elevated transition-colors ${
-                            formData.client_id === client.id ? 'bg-primary/5 border-l-4 border-l-primary' : ''
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-medium text-text-primary">{client.name}</p>
-                              <p className="text-sm text-text-secondary">
-                                {client.contact_name || 'Sin contacto'}
-                                {client.phone && ` • ${client.phone}`}
-                              </p>
+                  {!formData.client_id ? (
+                    // Modo selección - Dropdown con búsqueda
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-text-muted z-10" />
+                      <Input
+                        value={clientSearch}
+                        onChange={(e) => setClientSearch(e.target.value)}
+                        placeholder="Escribe para buscar cliente..."
+                        className="pl-10"
+                        autoComplete="off"
+                      />
+                      
+                      {/* Dropdown de resultados */}
+                      {clientSearch && (
+                        <div className="absolute z-50 w-full mt-1 bg-surface border border-border rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                          {filteredClients.length > 0 ? (
+                            filteredClients.slice(0, 10).map((client) => (
+                              <div
+                                key={client.id}
+                                onClick={() => {
+                                  setFormData({ ...formData, client_id: client.id });
+                                  setClientSearch('');
+                                }}
+                                className="p-3 cursor-pointer hover:bg-surface-elevated transition-colors border-b border-border last:border-0"
+                              >
+                                <p className="font-medium text-text-primary">{client.name}</p>
+                                <p className="text-sm text-text-secondary">
+                                  {client.contact_name || 'Sin contacto'}
+                                  {client.phone && ` • ${client.phone}`}
+                                </p>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="p-4 text-center text-text-muted">
+                              No se encontraron clientes
                             </div>
-                            {formData.client_id === client.id && (
-                              <Badge variant="success">Seleccionado</Badge>
-                            )}
-                          </div>
+                          )}
                         </div>
-                      ))
-                    ) : (
-                      <div className="p-4 text-center text-text-muted">
-                        No se encontraron clientes
+                      )}
+                    </div>
+                  ) : (
+                    // Cliente seleccionado - Botón para cambiar
+                    <div className="flex items-center justify-between p-3 bg-primary/5 border border-primary/20 rounded-lg">
+                      <div>
+                        <p className="font-medium text-text-primary">{selectedClient?.name}</p>
+                        <p className="text-sm text-text-secondary">
+                          {selectedClient?.contact_name || 'Sin contacto'}
+                        </p>
                       </div>
-                    )}
-                  </div>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => {
+                          setFormData({ ...formData, client_id: '' });
+                          setClientSearch('');
+                        }}
+                      >
+                        Cambiar
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Cliente seleccionado */}
@@ -336,6 +370,16 @@ export default function NuevoPedidoPage() {
                       <div>
                         <span className="text-text-secondary">Dirección:</span>
                         <p>{selectedClient.address_delivery || '-'}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="text-text-secondary">Lista de Precios:</span>
+                        <div className="mt-1">
+                          {selectedClient.price_list ? (
+                            <Badge variant="info">{selectedClient.price_list.name}</Badge>
+                          ) : (
+                            <Badge variant="neutral">Lista General</Badge>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -381,11 +425,21 @@ export default function NuevoPedidoPage() {
                 {/* Agregar Producto */}
                 <div className="bg-surface-elevated p-4 rounded-lg">
                   <h4 className="font-medium text-text-primary mb-3">Agregar Producto</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <div className="md:col-span-2">
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                    {/* Selector de Producto */}
+                    <div className="md:col-span-4">
                       <select
                         value={selectedProductId}
-                        onChange={(e) => setSelectedProductId(e.target.value)}
+                        onChange={(e) => {
+                          setSelectedProductId(e.target.value);
+                          setSelectedVariant('');
+                          // Calcular precio automáticamente
+                          const product = products.find(p => p.id === e.target.value);
+                          if (product && selectedClient) {
+                            const price = getProductPrice(product);
+                            setSelectedPrice(price.toString());
+                          }
+                        }}
                         className="w-full px-3 py-2 border border-border rounded-lg bg-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                       >
                         <option value="">Seleccionar producto...</option>
@@ -396,7 +450,34 @@ export default function NuevoPedidoPage() {
                         ))}
                       </select>
                     </div>
-                    <div className="md:col-span-1">
+
+                    {/* Selector de Variante (solo si tiene variantes) */}
+                    {selectedProduct?.has_variants && (
+                      <div className="md:col-span-3">
+                        <select
+                          value={selectedVariant}
+                          onChange={(e) => {
+                            setSelectedVariant(e.target.value);
+                            // Recalcular precio con variante
+                            if (selectedClient) {
+                              const price = getProductPrice(selectedProduct, e.target.value);
+                              setSelectedPrice(price.toString());
+                            }
+                          }}
+                          className="w-full px-3 py-2 border border-border rounded-lg bg-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        >
+                          <option value="">Seleccionar sabor...</option>
+                          {selectedProduct.variants?.map((variant: any, idx: number) => (
+                            <option key={idx} value={variant.name}>
+                              {variant.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Cantidad */}
+                    <div className="md:col-span-2">
                       <Input
                         type="number"
                         min="1"
@@ -405,17 +486,43 @@ export default function NuevoPedidoPage() {
                         placeholder="Cantidad"
                       />
                     </div>
+
+                    {/* Precio (editable) */}
+                    <div className="md:col-span-2">
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-muted">$</span>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={selectedPrice}
+                          onChange={(e) => setSelectedPrice(e.target.value)}
+                          placeholder="Precio"
+                          className="pl-7"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Botón Agregar */}
                     <div className="md:col-span-1">
                       <Button 
                         variant="outline" 
                         className="w-full"
                         onClick={handleAddItem}
                       >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Agregar
+                        <Plus className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
+                  
+                  {/* Mensaje de precio sugerido */}
+                  {selectedProduct && selectedClient && (
+                    <div className="mt-2 text-sm text-text-secondary">
+                      Precio sugerido basado en lista del cliente: {' '}
+                      <span className="font-medium text-text-primary">
+                        {formatCurrency(getProductPrice(selectedProduct, selectedVariant))}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Lista de Productos */}
@@ -429,28 +536,33 @@ export default function NuevoPedidoPage() {
                       >
                         <div className="flex-1">
                           <p className="font-medium text-text-primary">{item.product_name}</p>
+                          {item.variant_name && (
+                            <p className="text-sm text-text-secondary">{item.variant_name}</p>
+                          )}
                         </div>
                         <div className="flex items-center gap-4">
                           <div className="flex items-center gap-2">
-                            <label className="text-sm text-text-secondary">Cantidad:</label>
+                            <label className="text-sm text-text-secondary">Cant:</label>
                             <Input
                               type="number"
                               min="1"
                               value={item.quantity}
                               onChange={(e) => handleUpdateItemQuantity(index, e.target.value)}
-                              className="w-20"
+                              className="w-16"
                             />
                           </div>
                           <div className="flex items-center gap-2">
                             <label className="text-sm text-text-secondary">Precio:</label>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              value={item.unit_price_snapshot}
-                              onChange={(e) => handleUpdateItemPrice(index, e.target.value)}
-                              className="w-28"
-                              placeholder="$0.00"
-                            />
+                            <div className="relative">
+                              <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-text-muted text-sm">$</span>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                value={item.unit_price_snapshot}
+                                onChange={(e) => handleUpdateItemPrice(index, e.target.value)}
+                                className="w-24 pl-5"
+                              />
+                            </div>
                           </div>
                           <div className="text-right min-w-[100px]">
                             <p className="font-medium text-text-primary">
