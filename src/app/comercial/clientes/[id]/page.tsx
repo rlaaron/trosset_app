@@ -1,8 +1,8 @@
 /**
- * @file: src/app/comercial/clientes/nuevo/page.tsx
- * @purpose: Formulario para crear nuevo cliente (US-06, BR-07)
- * @goal: Permitir crear clientes con datos fiscales opcionales
- * @context: Módulo Comercial - Creación de cliente
+ * @file: src/app/comercial/clientes/[id]/page.tsx
+ * @purpose: Formulario para editar cliente existente
+ * @goal: Permitir editar clientes con datos fiscales y lista de precios
+ * @context: Módulo Comercial - Edición de cliente
  */
 
 'use client';
@@ -14,16 +14,24 @@ import { PageContainer } from '@/components/layout/PageContainer';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { ArrowLeft, Save } from 'lucide-react';
-import { createClient, getPriceLists } from '@/actions/clients';
-import type { PriceList } from '@/types/database.types';
+import { ArrowLeft, Save, Loader2 } from 'lucide-react';
+import { getClientById, updateClient, getPriceLists } from '@/actions/clients';
+import type { PriceList, Client } from '@/types/database.types';
 
-export default function NuevoClientePage() {
+interface EditClientePageProps {
+  params: Promise<{
+    id: string;
+  }>;
+}
+
+export default function EditClientePage({ params }: EditClientePageProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [requiresInvoice, setRequiresInvoice] = useState(false);
   const [priceLists, setPriceLists] = useState<PriceList[]>([]);
   const [loadingPriceLists, setLoadingPriceLists] = useState(true);
+  const [clientId, setClientId] = useState<string>('');
   const [formData, setFormData] = useState({
     name: '',
     contact_name: '',
@@ -40,46 +48,98 @@ export default function NuevoClientePage() {
     cfdi_use: 'G03',
   });
 
-  // Cargar listas de precios al montar el componente
+  // Cargar cliente y listas de precios al montar el componente
   useEffect(() => {
-    async function loadPriceLists() {
-      const { data, error } = await getPriceLists();
-      if (data && !error) {
-        setPriceLists(data);
+    async function loadData() {
+      try {
+        const { id } = await params;
+        setClientId(id);
+        
+        // Cargar cliente
+        const { data: client, error: clientError } = await getClientById(id);
+        if (clientError || !client) {
+          alert('Error al cargar cliente: ' + (clientError || 'No encontrado'));
+          router.push('/comercial/clientes');
+          return;
+        }
+
+        // Cargar listas de precios
+        const { data: lists, error: listsError } = await getPriceLists();
+        if (lists && !listsError) {
+          setPriceLists(lists);
+        }
+        setLoadingPriceLists(false);
+
+        // Setear datos del cliente en el formulario
+        setFormData({
+          name: client.name || '',
+          contact_name: client.contact_name || '',
+          phone: client.phone || '',
+          email: client.email || '',
+          address_delivery: client.address_delivery || '',
+          price_list_id: client.price_list_id || '',
+          requires_invoice: client.requires_invoice || false,
+          tax_id: client.tax_id || '',
+          tax_name: client.tax_name || '',
+          tax_regime: client.tax_regime || '',
+          tax_address: client.tax_address || '',
+          tax_zip_code: client.tax_zip_code || '',
+          cfdi_use: client.cfdi_use || 'G03',
+        });
+        setRequiresInvoice(client.requires_invoice || false);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error loading data:', error);
+        alert('Error al cargar datos del cliente');
+        router.push('/comercial/clientes');
       }
-      setLoadingPriceLists(false);
     }
-    loadPriceLists();
-  }, []);
+    loadData();
+  }, [params, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setSaving(true);
 
     try {
-      const { data, error } = await createClient({
+      const { data, error } = await updateClient(clientId, {
         ...formData,
         requires_invoice: requiresInvoice,
+        // Convertir string vacío a null para price_list_id
+        price_list_id: formData.price_list_id || null,
       });
 
       if (error) {
-        alert('Error al crear cliente: ' + error);
+        alert('Error al actualizar cliente: ' + error);
       } else {
-        alert('Cliente creado exitosamente');
+        alert('Cliente actualizado exitosamente');
         router.push('/comercial/clientes');
       }
     } catch (error) {
       alert('Error inesperado');
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
+
+  if (loading) {
+    return (
+      <AppLayout>
+        <PageContainer title="Editar Cliente">
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <span className="ml-2 text-text-secondary">Cargando...</span>
+          </div>
+        </PageContainer>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
       <PageContainer
-        title="Nuevo Cliente"
-        subtitle="Crear un nuevo cliente B2B"
+        title="Editar Cliente"
+        subtitle="Modificar información del cliente"
         actions={
           <Button variant="outline" onClick={() => router.back()}>
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -266,13 +326,13 @@ export default function NuevoClientePage() {
                 type="button"
                 variant="outline"
                 onClick={() => router.back()}
-                disabled={loading}
+                disabled={saving}
               >
                 Cancelar
               </Button>
-              <Button type="submit" variant="primary" disabled={loading}>
+              <Button type="submit" variant="primary" disabled={saving}>
                 <Save className="h-4 w-4 mr-2" />
-                {loading ? 'Guardando...' : 'Guardar Cliente'}
+                {saving ? 'Guardando...' : 'Guardar Cambios'}
               </Button>
             </div>
           </div>

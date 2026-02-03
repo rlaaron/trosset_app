@@ -12,7 +12,7 @@ import { PageContainer } from '@/components/layout/PageContainer';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { Plus, Users, Phone, Mail, FileText } from 'lucide-react';
+import { Plus, Users, Phone, Mail, FileText, Edit } from 'lucide-react';
 import { getClients } from '@/actions/clients';
 import { formatPhone } from '@/lib/utils/formatters';
 
@@ -176,9 +176,13 @@ export default async function ClientesPage() {
                           </Badge>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <Button variant="ghost" size="sm">
-                            Ver Detalle
-                          </Button>
+                          <Link
+                            href={`/comercial/clientes/${client.id}`}
+                            className="inline-flex items-center text-primary hover:text-primary-dark font-medium"
+                          >
+                            <Edit className="h-4 w-4 mr-1" />
+                            Editar
+                          </Link>
                         </td>
                       </tr>
                     ))
