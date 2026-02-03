@@ -305,11 +305,30 @@ CREATE POLICY "Enable read access for authenticated users" ON products
 CREATE POLICY "Enable read access for authenticated users" ON production_batches
     FOR SELECT USING (auth.role() = 'authenticated');
 
--- Política: Escritura permitida para usuarios autenticados
+-- Política: Escritura permitida para usuarios autenticados (INSERT)
 CREATE POLICY "Enable insert for authenticated users" ON orders
     FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 
+CREATE POLICY "Enable insert for authenticated users" ON clients
+    FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+
+CREATE POLICY "Enable insert for authenticated users" ON inventory_items
+    FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+
+CREATE POLICY "Enable insert for authenticated users" ON products
+    FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+
+-- Política: Escritura permitida para usuarios autenticados (UPDATE)
 CREATE POLICY "Enable update for authenticated users" ON orders
+    FOR UPDATE USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Enable update for authenticated users" ON clients
+    FOR UPDATE USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Enable update for authenticated users" ON inventory_items
+    FOR UPDATE USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Enable update for authenticated users" ON products
     FOR UPDATE USING (auth.role() = 'authenticated');
 
 -- -----------------------------------------------------------------------------
