@@ -32,12 +32,16 @@ interface PriceItem {
   cost_price: number;
   price: string;
   margin: number;
+  is_variant?: boolean;
+  variant_name?: string;
+  parent_product_id?: string;
 }
 
 export default function NuevaListaPreciosPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [products, setProducts] = useState<any[]>([]);
+  const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
   
   const [formData, setFormData] = useState({
     name: '',
@@ -54,17 +58,40 @@ export default function NuevaListaPreciosPage() {
     const { data } = await getProducts();
     if (data) {
       setProducts(data);
-      // Inicializar items de precios
-      const items = data.map((p: any) => {
-        const costPrice = calculateProductCost(p);
-        return {
-          product_id: p.id,
-          product_name: p.name,
-          cost_price: costPrice,
-          price: '',
-          margin: 0,
-        };
+      // Inicializar items de precios incluyendo variantes
+      const items: PriceItem[] = [];
+      
+      data.forEach((p: any) => {
+        const baseCost = calculateProductCost(p);
+        
+        if (p.has_variants && p.variants && p.variants.length > 0) {
+          // Producto maestro - crear fila para cada variante
+          p.variants.forEach((variant: any) => {
+            const variantCost = baseCost + (variant.extra_cost || 0);
+            items.push({
+              product_id: p.id,
+              product_name: p.name,
+              cost_price: variantCost,
+              price: '',
+              margin: 0,
+              is_variant: true,
+              variant_name: variant.name,
+              parent_product_id: p.id,
+            });
+          });
+        } else {
+          // Producto simple
+          items.push({
+            product_id: p.id,
+            product_name: p.name,
+            cost_price: baseCost,
+            price: '',
+            margin: 0,
+            is_variant: false,
+          });
+        }
       });
+      
       setPriceItems(items);
     }
   };
@@ -108,6 +135,7 @@ export default function NuevaListaPreciosPage() {
       .map(item => ({
         product_id: item.product_id,
         price: parseFloat(item.price),
+        variant_name: item.variant_name,
       }));
 
     setLoading(true);
@@ -136,6 +164,34 @@ export default function NuevaListaPreciosPage() {
     if (margin > 0) return 'text-error';
     return 'text-text-muted';
   };
+
+  const toggleProductExpand = (productId: string) => {
+    setExpandedProducts(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(productId)) {
+        newSet.delete(productId);
+      } else {
+        newSet.add(productId);
+      }
+      return newSet;
+    });
+  };
+
+  // Agrupar items por producto padre
+  const getGroupedItems = () => {
+    const groups: { [key: string]: { product: any; items: PriceItem[] } } = {};
+    
+    products.forEach(product => {
+      const productItems = priceItems.filter(item => item.product_id === product.id);
+      if (productItems.length > 0) {
+        groups[product.id] = { product, items: productItems };
+      }
+    });
+    
+    return groups;
+  };
+
+  const groupedItems = getGroupedItems();
 
   return (
     <AppLayout>
@@ -241,46 +297,122 @@ export default function NuevaListaPreciosPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {priceItems.map((item, index) => (
-                          <tr 
-                            key={item.product_id} 
-                            className={`border-b border-border last:border-0 ${
-                              item.price ? 'bg-primary/5' : ''
-                            }`}
-                          >
-                            <td className="py-3 px-2">
-                              <div className="flex items-center">
-                                <Package className="h-4 w-4 text-text-muted mr-2" />
-                                <span className="font-medium text-text-primary">{item.product_name}</span>
-                              </div>
-                            </td>
-                            <td className="py-3 px-2 text-right">
-                              <span className="text-text-secondary">{formatCurrency(item.cost_price)}</span>
-                            </td>
-                            <td className="py-3 px-2 text-right">
-                              <div className="flex items-center justify-end">
-                                <span className="text-text-muted mr-1">$</span>
-                                <Input
-                                  type="number"
-                                  step="0.01"
-                                  value={item.price}
-                                  onChange={(e) => handlePriceChange(index, e.target.value)}
-                                  placeholder="0.00"
-                                  className="w-24 text-right"
-                                />
-                              </div>
-                            </td>
-                            <td className="py-3 px-2 text-right">
-                              {item.price ? (
-                                <Badge variant={item.margin >= 30 ? 'success' : item.margin > 0 ? 'warning' : 'error'}>
-                                  {item.margin.toFixed(1)}%
-                                </Badge>
-                              ) : (
-                                <span className="text-text-muted">-</span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
+                        {Object.entries(groupedItems).map(([productId, { product, items }]) => {
+                          const hasVariants = product.has_variants;
+                          const isExpanded = expandedProducts.has(productId);
+                          const mainItemIndex = priceItems.findIndex(i => i.product_id === productId && !i.is_variant);
+                          
+                          return (
+                            <React.Fragment key={productId}>
+                              {/* Fila principal del producto */}
+                              <tr 
+                                className={`border-b border-border ${
+                                  hasVariants ? 'bg-surface-elevated' : ''
+                                }`}
+                              >
+                                <td className="py-3 px-2" colSpan={hasVariants ? 4 : 1}>
+                                  <div 
+                                    className={`flex items-center ${hasVariants ? 'cursor-pointer' : ''}`}
+                                    onClick={() => hasVariants && toggleProductExpand(productId)}
+                                  >
+                                    {hasVariants ? (
+                                      <>
+                                        <span className="mr-2 text-text-muted">
+                                          {isExpanded ? '▼' : '▶'}
+                                        </span>
+                                        <Package className="h-4 w-4 text-primary mr-2" />
+                                        <span className="font-semibold text-text-primary">{product.name}</span>
+                                        <Badge variant="info" className="ml-2 text-xs">
+                                          {items.length} sabores
+                                        </Badge>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Package className="h-4 w-4 text-text-muted mr-2" />
+                                        <span className="font-medium text-text-primary">{product.name}</span>
+                                      </>
+                                    )}
+                                  </div>
+                                </td>
+                                
+                                {!hasVariants && mainItemIndex >= 0 && (
+                                  <>
+                                    <td className="py-3 px-2 text-right">
+                                      <span className="text-text-secondary">{formatCurrency(priceItems[mainItemIndex].cost_price)}</span>
+                                    </td>
+                                    <td className="py-3 px-2 text-right">
+                                      <div className="flex items-center justify-end">
+                                        <span className="text-text-muted mr-1">$</span>
+                                        <Input
+                                          type="number"
+                                          step="0.01"
+                                          value={priceItems[mainItemIndex].price}
+                                          onChange={(e) => handlePriceChange(mainItemIndex, e.target.value)}
+                                          placeholder="0.00"
+                                          className="w-24 text-right"
+                                        />
+                                      </div>
+                                    </td>
+                                    <td className="py-3 px-2 text-right">
+                                      {priceItems[mainItemIndex].price ? (
+                                        <Badge variant={priceItems[mainItemIndex].margin >= 30 ? 'success' : priceItems[mainItemIndex].margin > 0 ? 'warning' : 'error'}>
+                                          {priceItems[mainItemIndex].margin.toFixed(1)}%
+                                        </Badge>
+                                      ) : (
+                                        <span className="text-text-muted">-</span>
+                                      )}
+                                    </td>
+                                  </>
+                                )}
+                              </tr>
+                              
+                              {/* Filas de variantes (solo si está expandido) */}
+                              {hasVariants && isExpanded && items.map((item, idx) => {
+                                const itemIndex = priceItems.findIndex(
+                                  i => i.product_id === item.product_id && i.variant_name === item.variant_name
+                                );
+                                
+                                return (
+                                  <tr 
+                                    key={`${item.product_id}-${item.variant_name}`}
+                                    className={`border-b border-border ${
+                                      item.price ? 'bg-primary/5' : ''
+                                    }`}
+                                  >
+                                    <td className="py-2 px-2 pl-10">
+                                      <span className="text-text-primary">{item.variant_name}</span>
+                                    </td>
+                                    <td className="py-2 px-2 text-right">
+                                      <span className="text-text-secondary">{formatCurrency(item.cost_price)}</span>
+                                    </td>
+                                    <td className="py-2 px-2 text-right">
+                                      <div className="flex items-center justify-end">
+                                        <span className="text-text-muted mr-1">$</span>
+                                        <Input
+                                          type="number"
+                                          step="0.01"
+                                          value={item.price}
+                                          onChange={(e) => handlePriceChange(itemIndex, e.target.value)}
+                                          placeholder="0.00"
+                                          className="w-24 text-right"
+                                        />
+                                      </div>
+                                    </td>
+                                    <td className="py-2 px-2 text-right">
+                                      {item.price ? (
+                                        <Badge variant={item.margin >= 30 ? 'success' : item.margin > 0 ? 'warning' : 'error'}>
+                                          {item.margin.toFixed(1)}%
+                                        </Badge>
+                                      ) : (
+                                        <span className="text-text-muted">-</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </React.Fragment>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

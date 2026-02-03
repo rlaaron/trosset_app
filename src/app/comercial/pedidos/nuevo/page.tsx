@@ -1,4 +1,4 @@
-/**
+`/**
  * @file: src/app/comercial/pedidos/nuevo/page.tsx
  * @purpose: Formulario para crear nuevo pedido B2B
  * @goal: Crear pedido con selección de cliente, productos y fechas
