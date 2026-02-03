@@ -1,0 +1,73 @@
+/**
+ * @file: src/app/globals.css
+ * @purpose: Estilos globales de la aplicación con variables CSS del tema panadería
+ * @goal: Definir la paleta de colores y estilos base de Tailwind
+ * @context: Configuración visual basada en mockups proporcionados
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Colores Primarios - Tonos Marrón Panadería */
+  --color-primary: #8B4513;
+  --color-primary-light: #A0522D;
+  --color-primary-dark: #5D2E0C;
+  
+  /* Colores Accent */
+  --color-accent: #D2691E;
+  --color-accent-light: #F4A460;
+  
+  /* Backgrounds */
+  --color-background: #FFF8F0;
+  --color-surface: #FFFFFF;
+  --color-surface-elevated: #FFFAF5;
+  
+  /* Textos */
+  --color-text-primary: #3D2914;
+  --color-text-secondary: #8B7355;
+  --color-text-muted: #A89880;
+  
+  /* Bordes */
+  --color-border: #E8DDD0;
+  --color-border-light: #F0E8DC;
+  
+  /* Estados */
+  --color-success: #4CAF50;
+  --color-success-light: #E8F5E9;
+  --color-warning: #FF9800;
+  --color-warning-light: #FFF3E0;
+  --color-error: #F44336;
+  --color-error-light: #FFEBEE;
+  --color-info: #2196F3;
+  --color-info-light: #E3F2FD;
+}
+
+@layer base {
+  body {
+    @apply bg-background text-text-primary;
+  }
+  
+  h1 {
+    @apply text-3xl font-bold text-text-primary;
+  }
+  
+  h2 {
+    @apply text-2xl font-semibold text-text-primary;
+  }
+  
+  h3 {
+    @apply text-xl font-semibold text-text-primary;
+  }
+  
+  h4 {
+    @apply text-lg font-medium text-text-primary;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
